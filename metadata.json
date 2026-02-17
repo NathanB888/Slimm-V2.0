@@ -1,0 +1,7 @@
+{
+  "name": "Slimm - Smart Dutch Energy Savings",
+  "description": "VoltVriend helps young adults in the Netherlands save on electricity bills with zero effort. It estimates usage via AI and provides simple monthly switch-to-save alerts.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
