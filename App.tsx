@@ -20,16 +20,24 @@ const App: React.FC = () => {
   const signupInProgress = useRef(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'INITIAL_SESSION') {
-        // Fired once on mount — single source of truth for page load
-        if (session && !signupInProgress.current) {
+    // Directly read session from localStorage — always resolves, no event timing issues
+    const init = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
           await fetchProfile(session.user.id);
         } else {
           setLoading(false);
         }
-      } else if (event === 'SIGNED_IN' && session && !signupInProgress.current) {
-        // Fired on explicit login (not on page reload)
+      } catch {
+        setLoading(false);
+      }
+    };
+    init();
+
+    // Handle auth changes that happen after initial load
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session && !signupInProgress.current) {
         await fetchProfile(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setProfile(null);
