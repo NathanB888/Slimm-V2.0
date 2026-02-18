@@ -4,6 +4,7 @@ import { UserProfile, HouseholdSize, HouseType, ContractType } from '../types';
 import { ENERGY_PROVIDERS, HOUSE_TYPES_LABELS, HOUSEHOLD_SIZE_LABELS, CONTRACT_TYPE_LABELS } from '../constants';
 import { estimateKwhUsage } from '../services/geminiService';
 import { supabase } from '../services/supabaseClient';
+import { Loader2 } from 'lucide-react';
 
 interface SignupFlowProps {
   onComplete: (profile: UserProfile) => void;
@@ -13,6 +14,7 @@ export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [isLogin, setIsLogin] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authData, setAuthData] = useState({ email: '', password: '' });
   const [formData, setFormData] = useState<Partial<UserProfile>>({
@@ -51,6 +53,7 @@ export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
   };
 
   const handleSubmit = async () => {
+    setSubmitting(true);
     setLoading(true);
     setError(null);
     try {
@@ -99,6 +102,7 @@ export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
 
       onComplete(completeProfile);
     } catch (err: any) {
+      setSubmitting(false);
       setError(err.message || 'Fout bij het opslaan van gegevens');
     } finally {
       setLoading(false);
@@ -282,6 +286,18 @@ export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
         return null;
     }
   };
+
+  if (submitting) {
+    return (
+      <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
+        <div className="flex flex-col items-center justify-center py-12 gap-4">
+          <Loader2 className="animate-spin text-blue-600" size={48} />
+          <p className="text-slate-700 font-semibold text-lg">Account aanmaken...</p>
+          <p className="text-slate-400 text-sm text-center">We schatten je verbruik in met AI.<br/>Dit duurt een paar seconden.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white p-8 rounded-2xl shadow-xl border border-gray-100">
