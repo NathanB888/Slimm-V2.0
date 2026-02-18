@@ -10,9 +10,10 @@ interface SignupFlowProps {
   onComplete: (profile: UserProfile) => void;
   onSignupStart: () => void;
   onSignupAbort: () => void;
+  onLoginComplete: (userId: string) => void;
 }
 
-export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete, onSignupStart, onSignupAbort }) => {
+export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete, onSignupStart, onSignupAbort, onLoginComplete }) => {
   const isMounted = useRef(true);
   useEffect(() => () => { isMounted.current = false; }, []);
 
@@ -41,18 +42,21 @@ export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete, onSignupStar
     setError(null);
     try {
       if (isLogin) {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: authData.email,
           password: authData.password,
         });
         if (signInError) throw signInError;
-        // Profile will be loaded by App.tsx listener
+        if (!signInData.user) throw new Error('Inloggen mislukt');
+        // Directly notify App.tsx — avoids relying on onAuthStateChange SIGNED_IN timing.
+        // Leave loading=true so the button stays disabled while App.tsx fetches & mounts the dashboard.
+        onLoginComplete(signInData.user.id);
       } else {
+        setLoading(false);
         next(); // Move to survey steps
       }
     } catch (err: any) {
       setError(err.message || 'Er is een fout opgetreden');
-    } finally {
       setLoading(false);
     }
   };

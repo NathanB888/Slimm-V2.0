@@ -35,11 +35,10 @@ const App: React.FC = () => {
     };
     init();
 
-    // Handle auth changes that happen after initial load
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session && !signupInProgress.current) {
-        await fetchProfile(session.user.id);
-      } else if (event === 'SIGNED_OUT') {
+    // Only handle sign-out — reload and signup are handled via getSession() and
+    // direct callbacks respectively, avoiding double-fetchProfile race conditions.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
         setProfile(null);
         setLoading(false);
       }
@@ -113,6 +112,12 @@ const App: React.FC = () => {
     signupInProgress.current = false;
   };
 
+  // Called by SignupFlow after successful login — directly fetches profile
+  // without relying on onAuthStateChange SIGNED_IN (which fires unpredictably)
+  const handleLoginComplete = (userId: string) => {
+    fetchProfile(userId);
+  };
+
   // Called by SignupFlow after profile is fully created (auth + Gemini + DB)
   const handleSignupComplete = (newProfile: UserProfile) => {
     signupInProgress.current = false;
@@ -179,6 +184,7 @@ const App: React.FC = () => {
           onComplete={handleSignupComplete}
           onSignupStart={handleSignupStart}
           onSignupAbort={handleSignupAbort}
+          onLoginComplete={handleLoginComplete}
         />
       </Layout>
     );
