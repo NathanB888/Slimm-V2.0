@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@theme {
+  --color-blue-50: #eeeeff;
+  --color-blue-100: #dcddfc;
+  --color-blue-500: #5657ea;
+  --color-blue-600: #4647e7;
+  --color-blue-700: #3334c5;
+}
+
 body {
   font-family: 'Inter', sans-serif;
 }
