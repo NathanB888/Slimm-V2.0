@@ -11,11 +11,13 @@ import { supabase } from './services/supabaseClient';
 const App: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMessage, setLoadingMessage] = useState('Laden van jouw gegevens...');
   const [isVerifying, setIsVerifying] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
   useEffect(() => {
-    // Listen for auth changes
+    // Listen for auth changes — only react to SIGNED_IN and INITIAL_SESSION
+    // to prevent TOKEN_REFRESHED from retriggering fetchProfile and causing a stuck loader
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
         await fetchProfile(session.user.id);
@@ -39,45 +41,67 @@ const App: React.FC = () => {
 
   const fetchProfile = async (userId: string) => {
     setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
+    const MAX_RETRIES = 5;
 
-      if (error) throw error;
-      if (data) {
-        const mappedProfile: UserProfile = {
-          email: data.email,
-          zipcode: data.zipcode,
-          houseNumber: data.house_number,
-          householdSize: data.household_size as HouseholdSize,
-          houseType: data.house_type as HouseType,
-          currentProvider: data.current_provider,
-          currentContractType: data.current_contract_type as ContractType,
-          monthlyCost: data.monthly_cost,
-          behaviors: {
-            workFromHome: data.work_from_home,
-            heatPump: data.heat_pump,
-            districtHeating: data.district_heating,
-            solarPanels: data.solar_panels
-          },
-          isVerified: data.is_verified,
-          estimatedKwhPerMonth: data.estimated_kwh_per_month,
-          estimatedPerKwhRate: data.estimated_per_kwh_rate
-        };
-        setProfile(mappedProfile);
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      if (attempt > 0) {
+        // Profile row not ready yet (DB trigger still running) — show specific message and wait
+        setLoadingMessage('Profiel configureren...');
+        await new Promise(res => setTimeout(res, 700 * attempt));
       }
-    } catch (err) {
-      console.error('Error fetching profile:', err);
-    } finally {
-      setLoading(false);
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        // PGRST116 = no rows found — profile not created by trigger yet, retry
+        if (error?.code === 'PGRST116') continue;
+
+        if (error) throw error;
+
+        if (data) {
+          const mappedProfile: UserProfile = {
+            email: data.email,
+            zipcode: data.zipcode,
+            houseNumber: data.house_number,
+            householdSize: data.household_size as HouseholdSize,
+            houseType: data.house_type as HouseType,
+            currentProvider: data.current_provider,
+            currentContractType: data.current_contract_type as ContractType,
+            monthlyCost: data.monthly_cost,
+            behaviors: {
+              workFromHome: data.work_from_home,
+              heatPump: data.heat_pump,
+              districtHeating: data.district_heating,
+              solarPanels: data.solar_panels
+            },
+            isVerified: data.is_verified,
+            estimatedKwhPerMonth: data.estimated_kwh_per_month,
+            estimatedPerKwhRate: data.estimated_per_kwh_rate
+          };
+          setProfile(mappedProfile);
+          setLoading(false);
+          setLoadingMessage('Laden van jouw gegevens...');
+          return;
+        }
+      } catch (err) {
+        console.error('Error fetching profile:', err);
+        break;
+      }
     }
+
+    setLoading(false);
+    setLoadingMessage('Laden van jouw gegevens...');
   };
 
+  // Called by SignupFlow once the full profile (with AI estimates) is ready
+  // Setting showSuccess ensures the welcome screen is shown before the dashboard
   const handleSignupComplete = (newProfile: UserProfile) => {
     setProfile(newProfile);
+    setShowSuccess(true);
   };
 
   const handleLogout = async () => {
@@ -89,7 +113,7 @@ const App: React.FC = () => {
 
   const handleVerificationUpdate = async (update: Partial<UserProfile>) => {
     if (!profile) return;
-    
+
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -97,7 +121,7 @@ const App: React.FC = () => {
 
       const dbUpdate: any = {};
       if (update.isVerified !== undefined) dbUpdate.is_verified = update.isVerified;
-      if (update.verifiedKwhPerMonth !== undefined) dbUpdate.estimated_kwh_per_month = update.verifiedKwhPerMonth; // Syncing for now
+      if (update.verifiedKwhPerMonth !== undefined) dbUpdate.estimated_kwh_per_month = update.verifiedKwhPerMonth;
       if (update.verifiedPerKwhRate !== undefined) dbUpdate.estimated_per_kwh_rate = update.verifiedPerKwhRate;
       if (update.verifiedProvider !== undefined) dbUpdate.current_provider = update.verifiedProvider;
 
@@ -107,7 +131,7 @@ const App: React.FC = () => {
         .eq('id', user.id);
 
       if (error) throw error;
-      
+
       await fetchProfile(user.id);
       setIsVerifying(false);
     } catch (err) {
@@ -122,7 +146,7 @@ const App: React.FC = () => {
       <Layout>
         <div className="flex flex-col items-center justify-center py-24 gap-4">
           <Loader2 className="animate-spin text-blue-600" size={48} />
-          <p className="text-slate-500 font-medium">Laden van jouw gegevens...</p>
+          <p className="text-slate-500 font-medium">{loadingMessage}</p>
         </div>
       </Layout>
     );
@@ -154,7 +178,7 @@ const App: React.FC = () => {
           <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-700 font-medium">
             Je eerste prijscheck vindt morgen om 08:00 uur plaats. Upload je rekening voor de meest nauwkeurige besparingscheck.
           </div>
-          <button 
+          <button
             onClick={() => setShowSuccess(false)}
             className="w-full bg-slate-900 text-white p-4 rounded-xl font-bold hover:bg-slate-800 transition-colors"
           >
@@ -168,14 +192,14 @@ const App: React.FC = () => {
   return (
     <Layout>
       {isVerifying ? (
-        <BillVerification 
-          onVerified={handleVerificationUpdate} 
-          onCancel={() => setIsVerifying(false)} 
+        <BillVerification
+          onVerified={handleVerificationUpdate}
+          onCancel={() => setIsVerifying(false)}
         />
       ) : (
-        <Dashboard 
-          profile={profile} 
-          onLogout={handleLogout} 
+        <Dashboard
+          profile={profile}
+          onLogout={handleLogout}
           onUpdate={handleVerificationUpdate}
           onVerify={() => setIsVerifying(true)}
         />

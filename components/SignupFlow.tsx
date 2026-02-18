@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile, HouseholdSize, HouseType, ContractType } from '../types';
 import { ENERGY_PROVIDERS, HOUSE_TYPES_LABELS, HOUSEHOLD_SIZE_LABELS, CONTRACT_TYPE_LABELS } from '../constants';
 import { estimateKwhUsage } from '../services/geminiService';
@@ -11,6 +11,9 @@ interface SignupFlowProps {
 }
 
 export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
+  const isMounted = useRef(true);
+  useEffect(() => () => { isMounted.current = false; }, []);
+
   const [step, setStep] = useState(1);
   const [isLogin, setIsLogin] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -101,11 +104,14 @@ export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
       if (profileError) throw profileError;
 
       onComplete(completeProfile);
+      // Do NOT reset loading here — keep the loading state active until
+      // App.tsx unmounts this component after detecting the session change.
     } catch (err: any) {
-      setSubmitting(false);
-      setError(err.message || 'Fout bij het opslaan van gegevens');
-    } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setSubmitting(false);
+        setLoading(false);
+        setError(err.message || 'Fout bij het opslaan van gegevens');
+      }
     }
   };
 
