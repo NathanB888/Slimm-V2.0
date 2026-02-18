@@ -21,20 +21,18 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
-        // Skip during signup — profile will be provided by handleSignupComplete
-        if (signupInProgress.current) return;
+      if (event === 'INITIAL_SESSION') {
+        // Fired once on mount — single source of truth for page load
+        if (session && !signupInProgress.current) {
+          await fetchProfile(session.user.id);
+        } else {
+          setLoading(false);
+        }
+      } else if (event === 'SIGNED_IN' && session && !signupInProgress.current) {
+        // Fired on explicit login (not on page reload)
         await fetchProfile(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setProfile(null);
-        setLoading(false);
-      }
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        fetchProfile(session.user.id);
-      } else {
         setLoading(false);
       }
     });
