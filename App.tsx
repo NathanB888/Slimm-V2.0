@@ -17,9 +17,9 @@ const App: React.FC = () => {
   useEffect(() => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
+      if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
         await fetchProfile(session.user.id);
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         setProfile(null);
         setLoading(false);
       }
@@ -78,7 +78,6 @@ const App: React.FC = () => {
 
   const handleSignupComplete = (newProfile: UserProfile) => {
     setProfile(newProfile);
-    setShowSuccess(true);
   };
 
   const handleLogout = async () => {
