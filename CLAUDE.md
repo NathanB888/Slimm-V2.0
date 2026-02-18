@@ -1,8 +1,8 @@
-# VoltVriend / Slimm — Project Context
+# Slimm Besparen / Slimm — Project Context
 
 ## What It Is
 
-**VoltVriend** (also branded as **Slimm - Smart Dutch Energy Savings**) is a smart energy-saving assistant tailored for the Dutch market. It uses AI to estimate electricity usage from a household profile, verify actual usage by uploading an electricity bill (OCR), and suggest cheaper energy providers via monthly market price comparisons.
+**Slimm Besparen** (also branded as **Slimm - Smart Dutch Energy Savings**) is a smart energy-saving assistant tailored for the Dutch market. It uses AI to estimate electricity usage from a household profile, verify actual usage by uploading an electricity bill (OCR), and suggest cheaper energy providers via monthly market price comparisons.
 
 The entire UI and all AI prompts are written in **Dutch**.
 
