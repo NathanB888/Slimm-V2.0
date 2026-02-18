@@ -8,9 +8,11 @@ import { Loader2 } from 'lucide-react';
 
 interface SignupFlowProps {
   onComplete: (profile: UserProfile) => void;
+  onSignupStart: () => void;
+  onSignupAbort: () => void;
 }
 
-export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
+export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete, onSignupStart, onSignupAbort }) => {
   const isMounted = useRef(true);
   useEffect(() => () => { isMounted.current = false; }, []);
 
@@ -60,7 +62,8 @@ export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
     setLoading(true);
     setError(null);
     try {
-      // 1. Create Auth User
+      // 1. Create Auth User — signal App.tsx to block fetchProfile during signup
+      onSignupStart();
       const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: authData.email,
         password: authData.password,
@@ -81,8 +84,9 @@ export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
         estimateConfidence: estimate.confidence_level
       };
 
-      // 3. Save to Supabase Profiles table
-      const { error: profileError } = await supabase.from('profiles').insert({
+      // 3. Save to Supabase Profiles table — upsert handles the case where the
+      // DB trigger (on_auth_user_created) already inserted a partial row
+      const { error: profileError } = await supabase.from('profiles').upsert({
         id: signUpData.user.id,
         email: authData.email,
         zipcode: formData.zipcode,
@@ -107,11 +111,10 @@ export const SignupFlow: React.FC<SignupFlowProps> = ({ onComplete }) => {
       // Do NOT reset loading here — keep the loading state active until
       // App.tsx unmounts this component after detecting the session change.
     } catch (err: any) {
-      if (isMounted.current) {
-        setSubmitting(false);
-        setLoading(false);
-        setError(err.message || 'Fout bij het opslaan van gegevens');
-      }
+      onSignupAbort(); // Unblock fetchProfile so future login attempts work
+      setSubmitting(false);
+      setLoading(false);
+      setError(err.message || 'Fout bij het opslaan van gegevens');
     }
   };
 

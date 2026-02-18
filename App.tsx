@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { SignupFlow } from './components/SignupFlow';
 import { Dashboard } from './components/Dashboard';
@@ -15,11 +15,15 @@ const App: React.FC = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  // Prevents the auth state listener from calling fetchProfile and setting
+  // loading=true (which would unmount SignupFlow) while a signup is in progress.
+  const signupInProgress = useRef(false);
+
   useEffect(() => {
-    // Listen for auth changes — only react to SIGNED_IN and INITIAL_SESSION
-    // to prevent TOKEN_REFRESHED from retriggering fetchProfile and causing a stuck loader
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session) {
+        // Skip during signup — profile will be provided by handleSignupComplete
+        if (signupInProgress.current) return;
         await fetchProfile(session.user.id);
       } else if (event === 'SIGNED_OUT') {
         setProfile(null);
@@ -27,7 +31,6 @@ const App: React.FC = () => {
       }
     });
 
-    // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         fetchProfile(session.user.id);
@@ -45,7 +48,6 @@ const App: React.FC = () => {
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       if (attempt > 0) {
-        // Profile row not ready yet (DB trigger still running) — show specific message and wait
         setLoadingMessage('Profiel configureren...');
         await new Promise(res => setTimeout(res, 700 * attempt));
       }
@@ -57,9 +59,7 @@ const App: React.FC = () => {
           .eq('id', userId)
           .single();
 
-        // PGRST116 = no rows found — profile not created by trigger yet, retry
         if (error?.code === 'PGRST116') continue;
-
         if (error) throw error;
 
         if (data) {
@@ -97,9 +97,19 @@ const App: React.FC = () => {
     setLoadingMessage('Laden van jouw gegevens...');
   };
 
-  // Called by SignupFlow once the full profile (with AI estimates) is ready
-  // Setting showSuccess ensures the welcome screen is shown before the dashboard
+  // Called by SignupFlow right before supabase.auth.signUp() — blocks fetchProfile
+  const handleSignupStart = () => {
+    signupInProgress.current = true;
+  };
+
+  // Called by SignupFlow on error — unblocks fetchProfile for future login attempts
+  const handleSignupAbort = () => {
+    signupInProgress.current = false;
+  };
+
+  // Called by SignupFlow after profile is fully created (auth + Gemini + DB)
   const handleSignupComplete = (newProfile: UserProfile) => {
+    signupInProgress.current = false;
     setProfile(newProfile);
     setShowSuccess(true);
   };
@@ -159,7 +169,11 @@ const App: React.FC = () => {
           <h2 className="text-4xl font-extrabold text-slate-900 mb-4 tracking-tight">Bespaar op je energie. <br/><span className="text-blue-600">Zonder gedoe.</span></h2>
           <p className="text-lg text-slate-500 max-w-sm mx-auto">Wij controleren elke maand de marktprijzen. Kun je besparen? Dan laten we het je weten. Zo simpel is het.</p>
         </div>
-        <SignupFlow onComplete={handleSignupComplete} />
+        <SignupFlow
+          onComplete={handleSignupComplete}
+          onSignupStart={handleSignupStart}
+          onSignupAbort={handleSignupAbort}
+        />
       </Layout>
     );
   }
