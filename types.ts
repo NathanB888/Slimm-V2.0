@@ -49,6 +49,7 @@ export interface MarketProvider {
   name: string;
   perKwhRate: number;
   contractType: 'variable' | 'fixed';
+  welkomsbonus?: number; // one-time cash bonus in EUR, reduces effective first-year cost
 }
 
 export interface PriceCheckResult {

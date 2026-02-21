@@ -37,6 +37,9 @@ function ProviderCard({ provider, rank, userKwhPerMonth }: { provider: MarketPro
         <span className="text-sm font-normal text-slate-400">/maand</span>
       </p>
       <p className="text-xs text-slate-400">{userKwhPerMonth} kWh/maand</p>
+      {provider.welkomsbonus ? (
+        <p className="text-xs font-semibold text-emerald-600">+ €{provider.welkomsbonus} welkomsbonus</p>
+      ) : null}
     </div>
   );
 }

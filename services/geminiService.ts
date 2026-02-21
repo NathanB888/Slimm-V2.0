@@ -109,12 +109,17 @@ export async function compareMarketPrices(profile: UserProfile): Promise<PriceCh
   const userRate = profile.isVerified ? profile.verifiedPerKwhRate : profile.estimatedPerKwhRate;
   const userKwh = profile.isVerified ? profile.verifiedKwhPerMonth : profile.estimatedKwhPerMonth;
 
-  // Step 1: Grounded Google Search for live Dutch energy prices
+  // Determine whether switching costs apply:
+  // Only for fixed-term (vast) contracts that haven't expired yet.
+  // Variable and dynamic contracts have no switching costs (max 30-day notice).
+  const hasSwitchingCosts = profile.currentContractType === 'fixed';
+
+  // Step 1: Grounded Google Search for live Dutch energy prices + welcome bonuses
   let marketContext = '';
   try {
     const searchResponse = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
-      contents: `Zoek de actuele kWh-tarieven voor elektriciteit van Nederlandse energieleveranciers (${new Date().toLocaleDateString('nl-NL')}). Geef tarieven per kWh voor zowel variabele als vaste contracten van leveranciers zoals Vattenfall, Essent, Eneco, Engie, Budget Energie, Greenchoice, Frank Energie, Tibber, Vandebron, Hollandsnieuwe, United Consumers, Pure Energie. Vermeld voor elke leverancier de naam, het tarief per kWh en het contracttype.`,
+      contents: `Zoek de actuele kWh-tarieven voor elektriciteit van Nederlandse energieleveranciers (${new Date().toLocaleDateString('nl-NL')}). Geef tarieven per kWh voor zowel variabele als vaste contracten van leveranciers zoals Vattenfall, Essent, Eneco, Engie, Budget Energie, Greenchoice, Frank Energie, Tibber, Vandebron, Hollandsnieuwe, United Consumers, Pure Energie. Vermeld ook eventuele welkomsbonussen (eenmalige cashbonussen) die leveranciers momenteel aanbieden aan nieuwe klanten.`,
       config: {
         tools: [{ googleSearch: {} }],
       }
@@ -124,22 +129,28 @@ export async function compareMarketPrices(profile: UserProfile): Promise<PriceCh
     // Fallback: realistic Dutch market prices if grounded search fails
     marketContext = `
       Huidige Nederlandse elektriciteitsprijzen (marktschatting):
-      - Frank Energie: €0.27/kWh variabel
-      - Tibber: €0.26/kWh dynamisch/variabel
-      - Greenchoice: €0.32/kWh vast
-      - Budget Energie: €0.31/kWh vast
-      - Vattenfall: €0.34/kWh vast
-      - Essent: €0.35/kWh vast
-      - Eneco: €0.36/kWh vast
-      - Engie: €0.33/kWh vast
+      - Frank Energie: €0.27/kWh variabel, geen welkomsbonus
+      - Tibber: €0.26/kWh dynamisch/variabel, geen welkomsbonus
+      - Greenchoice: €0.32/kWh vast, welkomsbonus €75
+      - Budget Energie: €0.31/kWh vast, welkomsbonus €50
+      - Vattenfall: €0.34/kWh vast, welkomsbonus €100
+      - Essent: €0.35/kWh vast, welkomsbonus €100
+      - Eneco: €0.36/kWh vast, geen welkomsbonus
+      - Engie: €0.33/kWh vast, welkomsbonus €60
     `;
   }
 
   // Step 2: Structured analysis — find top 2 and calculate savings
-  const prompt = `
-    Je bent een Nederlandse energieprijzen expert. Gebruik de onderstaande live marktdata om de 2 goedkoopste energieleveranciers te identificeren en te vergelijken met de gebruiker.
+  const switchingCostRule = hasSwitchingCosts
+    ? `De gebruiker heeft een VAST contract. Overstapkosten kunnen van toepassing zijn.
+       Formule: (resterend verbruik tot contracteinde) × (huidig tarief - nieuw vergelijkbaar tarief).
+       Gebruik een conservatieve schatting van €75 totale overstapkosten gespreid over 12 maanden (€6,25/maand) tenzij je betere data hebt.`
+    : `De gebruiker heeft een VARIABEL of DYNAMISCH contract. Er zijn GEEN overstapkosten (maximale opzegtermijn 30 dagen). Houd hier GEEN rekening mee in de berekening.`;
 
-    LIVE MARKTDATA:
+  const prompt = `
+    Je bent een Nederlandse energieprijzen expert. Gebruik de onderstaande live marktdata om de 2 voordeligste energieleveranciers te identificeren en te vergelijken met de gebruiker.
+
+    LIVE MARKTDATA (incl. welkomsbonussen):
     ${marketContext}
 
     GEBRUIKERSPROFIEL:
@@ -148,10 +159,19 @@ export async function compareMarketPrices(profile: UserProfile): Promise<PriceCh
     - Contracttype: ${profile.currentContractType}
     - Maandverbruik: ${userKwh} kWh
 
+    OVERSTAPKOSTEN REGEL:
+    ${switchingCostRule}
+
+    WELKOMSBONUS REGEL:
+    Een welkomsbonus (eenmalig cash) verlaagt de effectieve kosten van het eerste jaar.
+    Verdeel de welkomsbonus over 12 maanden voor de maandelijkse besparing (bonus ÷ 12).
+    Een welkomsbonus die terugbetaald moet worden als je binnen 6 maanden opzegt telt mee, maar alleen voor klanten die minstens 6 maanden blijven.
+
     TAAK:
-    1. Selecteer de 2 goedkoopste leveranciers uit de marktdata (zowel variabele als vaste contracten mogen voorkomen)
-    2. Bereken maandelijkse besparing: (€${userRate?.toFixed(4)} - goedkoopste_tarief) × ${userKwh} kWh
-    3. Geef SWITCH als netto besparing (na €75 overstapkosten gespreid over 12 maanden) > €10/maand; anders STAY
+    1. Selecteer de 2 voordeligste leveranciers rekening houdend met kWh-tarief ÉN welkomsbonus
+    2. Bereken maandelijkse netto besparing t.o.v. de gebruiker:
+       (€${userRate?.toFixed(4)} - nieuw_tarief) × ${userKwh} kWh + (welkomsbonus ÷ 12) - eventuele overstapkosten/maand
+    3. Geef SWITCH als netto besparing > €10/maand; anders STAY
     4. Reasoning in het NEDERLANDS, max 2 zinnen
 
     Retourneer ALLEEN geldige JSON.
@@ -173,6 +193,7 @@ export async function compareMarketPrices(profile: UserProfile): Promise<PriceCh
                 name: { type: Type.STRING },
                 per_kwh_rate: { type: Type.NUMBER },
                 contract_type: { type: Type.STRING },
+                welkomsbonus: { type: Type.NUMBER }, // one-time EUR cash bonus, 0 if none
               }
             }
           },
@@ -191,6 +212,7 @@ export async function compareMarketPrices(profile: UserProfile): Promise<PriceCh
     perKwhRate: p.per_kwh_rate,
     contractType: (p.contract_type === 'variabel' || p.contract_type === 'variable' || p.contract_type === 'dynamisch')
       ? 'variable' : 'fixed',
+    welkomsbonus: p.welkomsbonus || 0,
   }));
 
   return {
