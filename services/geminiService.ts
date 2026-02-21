@@ -2,7 +2,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, ComparisonResult, BillExtraction, MarketProvider, PriceCheckResult } from "../types";
 
-const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAI = () => {
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || '';
+  if (!apiKey) throw new Error('Gemini API-sleutel niet geconfigureerd. Controleer de omgevingsvariabelen in Vercel.');
+  return new GoogleGenAI({ apiKey });
+};
 
 export async function estimateKwhUsage(profile: UserProfile): Promise<any> {
   const ai = getAI();
