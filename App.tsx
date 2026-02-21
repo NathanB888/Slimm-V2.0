@@ -4,7 +4,7 @@ import { Layout } from './components/Layout';
 import { SignupFlow } from './components/SignupFlow';
 import { Dashboard } from './components/Dashboard';
 import { BillVerification } from './components/BillVerification';
-import { UserProfile, HouseholdSize, HouseType, ContractType } from './types';
+import { UserProfile, HouseholdSize, HouseType, ContractType, PriceCheckResult } from './types';
 import { Check, Loader2 } from 'lucide-react';
 import { supabase } from './services/supabaseClient';
 
@@ -85,7 +85,8 @@ const App: React.FC = () => {
             },
             isVerified: data.is_verified,
             estimatedKwhPerMonth: data.estimated_kwh_per_month,
-            estimatedPerKwhRate: data.estimated_per_kwh_rate
+            estimatedPerKwhRate: data.estimated_per_kwh_rate,
+            lastPriceCheck: data.last_price_check_result ?? undefined,
           };
           setProfile(mappedProfile);
           setLoading(false);
@@ -123,6 +124,16 @@ const App: React.FC = () => {
     signupInProgress.current = false;
     setProfile(newProfile);
     setShowSuccess(true);
+  };
+
+  const handlePriceCheckComplete = async (result: PriceCheckResult) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from('profiles').update({
+      last_price_check_at: result.checkedAt,
+      last_price_check_result: result,
+    }).eq('id', user.id);
+    setProfile(prev => prev ? { ...prev, lastPriceCheck: result } : prev);
   };
 
   const handleLogout = async () => {
@@ -228,6 +239,7 @@ const App: React.FC = () => {
           onLogout={handleLogout}
           onUpdate={handleVerificationUpdate}
           onVerify={() => setIsVerifying(true)}
+          onCheckComplete={handlePriceCheckComplete}
         />
       )}
     </Layout>

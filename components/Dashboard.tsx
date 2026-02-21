@@ -1,26 +1,54 @@
 
-import React, { useState, useEffect } from 'react';
-import { UserProfile, ComparisonResult } from '../types';
+import React, { useState } from 'react';
+import { UserProfile, PriceCheckResult, MarketProvider } from '../types';
 import { compareMarketPrices } from '../services/geminiService';
 import { CONTRACT_TYPE_LABELS } from '../constants';
-import { CheckCircle, AlertTriangle, RefreshCw, Upload, Trash2, HelpCircle } from 'lucide-react';
+import { CheckCircle, AlertTriangle, RefreshCw, Upload, Trash2, HelpCircle, Zap, Lock } from 'lucide-react';
 
 interface DashboardProps {
   profile: UserProfile;
   onUpdate: (profile: Partial<UserProfile>) => void;
   onLogout: () => void;
   onVerify: () => void;
+  onCheckComplete: (result: PriceCheckResult) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ profile, onUpdate, onLogout, onVerify }) => {
+function formatCheckedAt(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long' }) +
+    ' om ' + d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+}
+
+function ProviderCard({ provider, rank }: { provider: MarketProvider; rank: number }) {
+  const isVariable = provider.contractType === 'variable';
+  return (
+    <div className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">#{rank}</span>
+        <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${isVariable ? 'bg-blue-100 text-blue-600' : 'bg-slate-200 text-slate-600'}`}>
+          {isVariable ? <Zap size={10} /> : <Lock size={10} />}
+          {isVariable ? 'Variabel' : 'Vast'}
+        </span>
+      </div>
+      <p className="font-bold text-slate-900 text-base leading-tight">{provider.name}</p>
+      <p className="text-2xl font-extrabold text-slate-800">
+        €{provider.perKwhRate.toFixed(3)}
+        <span className="text-sm font-normal text-slate-400">/kWh</span>
+      </p>
+    </div>
+  );
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ profile, onUpdate, onLogout, onVerify, onCheckComplete }) => {
   const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState<ComparisonResult | null>(null);
+  const [result, setResult] = useState<PriceCheckResult | null>(profile.lastPriceCheck ?? null);
 
   const performCheck = async () => {
     setChecking(true);
     try {
       const res = await compareMarketPrices(profile);
       setResult(res);
+      onCheckComplete(res);
     } catch (e) {
       console.error(e);
     } finally {
@@ -28,113 +56,122 @@ export const Dashboard: React.FC<DashboardProps> = ({ profile, onUpdate, onLogou
     }
   };
 
-  useEffect(() => {
-    performCheck();
-  }, []);
-
-  const getStatusInfo = () => {
-    if (!profile.isVerified) {
-      return {
-        label: "⏳ Rekening verifiëren...",
-        sub: "Upload je rekening voor 100% nauwkeurigheid",
-        color: "bg-gray-100 text-gray-600"
-      };
-    }
-    if (!result) return { label: "Controleren...", sub: "", color: "bg-gray-100" };
-    
-    if (result.recommendation === 'STAY') {
-      return {
-        label: "✓ Beste prijs",
-        sub: "Je zit momenteel op de goedkoopste optie",
-        color: "bg-emerald-100 text-emerald-700"
-      };
-    } else if (result.recommendation === 'SWITCH') {
-      return {
-        label: `💰 Bespaar €${result.savingsEur}`,
-        sub: "Je kunt dit bedrag maandelijks besparen door over te stappen",
-        color: "bg-orange-100 text-orange-700"
-      };
-    } else {
-      return {
-        label: "⚡ Actie vereist",
-        sub: result.reasoning,
-        color: "bg-yellow-100 text-yellow-700"
-      };
-    }
-  };
-
-  const status = getStatusInfo();
+  const canSwitch = result?.recommendation === 'SWITCH' && result.monthlySavings > 0;
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-3">
-           <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
             {profile.email.charAt(0).toUpperCase()}
-           </div>
-           <span className="text-sm font-medium text-slate-700">{profile.email}</span>
+          </div>
+          <span className="text-sm font-medium text-slate-700">{profile.email}</span>
         </div>
         <button onClick={onLogout} className="text-sm text-gray-400 hover:text-red-500 transition-colors">Uitloggen</button>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 overflow-hidden relative">
-        <div className={`absolute top-0 right-0 px-4 py-1 rounded-bl-xl text-xs font-bold uppercase tracking-wider ${status.color}`}>
-          {status.label}
-        </div>
+      {/* Main card */}
+      <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 space-y-6">
 
-        <div className="space-y-6">
-          <section>
-            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4">Huidig Contract</h3>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold text-slate-800">{profile.currentProvider}</p>
-                <p className="text-gray-500 capitalize">{CONTRACT_TYPE_LABELS[profile.currentContractType] || profile.currentContractType} tarief • €{profile.monthlyCost}/p.m.</p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-400">Geschat verbruik</p>
-                <p className="text-lg font-semibold text-slate-800">{profile.isVerified ? profile.verifiedKwhPerMonth : profile.estimatedKwhPerMonth} kWh/p.m.</p>
-              </div>
+        {/* Current contract */}
+        <section>
+          <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-widest mb-4">Huidig Contract</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-2xl font-bold text-slate-800">{profile.currentProvider}</p>
+              <p className="text-gray-500 capitalize">
+                {CONTRACT_TYPE_LABELS[profile.currentContractType] || profile.currentContractType} tarief &bull; €{profile.monthlyCost}/p.m.
+              </p>
             </div>
-          </section>
-
-          <div className="h-px bg-gray-100"></div>
-
-          <section>
-            <div className="flex items-start gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-              {result?.recommendation === 'SWITCH' ? (
-                <div className="bg-orange-500 p-2 rounded-lg text-white"><AlertTriangle size={20}/></div>
-              ) : (
-                <div className="bg-emerald-500 p-2 rounded-lg text-white"><CheckCircle size={20}/></div>
-              )}
-              <div>
-                <p className="font-bold text-slate-900">{status.label}</p>
-                <p className="text-sm text-slate-500 leading-relaxed">{status.sub}</p>
-              </div>
+            <div className="text-right">
+              <p className="text-sm font-medium text-gray-400">{profile.isVerified ? 'Geverifieerd' : 'Geschat'} verbruik</p>
+              <p className="text-lg font-semibold text-slate-800">
+                {profile.isVerified ? profile.verifiedKwhPerMonth : profile.estimatedKwhPerMonth} kWh/p.m.
+              </p>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <div className="flex gap-2">
-            <button 
-              onClick={performCheck} 
-              disabled={checking}
-              className="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white p-3 rounded-xl font-semibold hover:bg-slate-800 transition-all disabled:opacity-50"
-            >
-              <RefreshCw size={18} className={checking ? 'animate-spin' : ''} />
-              {checking ? 'Controleren...' : 'Nu controleren'}
-            </button>
-            {!profile.isVerified && (
-              <button 
-                onClick={onVerify}
-                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded-xl font-semibold hover:bg-blue-700 transition-all"
-              >
-                <Upload size={18} />
-                Rekening uploaden
-              </button>
+        <div className="h-px bg-gray-100" />
+
+        {/* Price check result */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Marktprijzen</h3>
+            {result?.checkedAt && (
+              <span className="text-xs text-gray-400">Gecontroleerd: {formatCheckedAt(result.checkedAt)}</span>
             )}
           </div>
+
+          {result && result.top2.length > 0 ? (
+            <>
+              {/* Top 2 provider cards */}
+              <div className="flex gap-3">
+                {result.top2.map((provider, i) => (
+                  <ProviderCard key={provider.name} provider={provider} rank={i + 1} />
+                ))}
+              </div>
+
+              {/* Recommendation banner */}
+              {canSwitch ? (
+                <div className="flex items-start gap-4 p-4 rounded-2xl bg-orange-50 border border-orange-100">
+                  <div className="bg-orange-500 p-2 rounded-lg text-white shrink-0">
+                    <AlertTriangle size={20} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      Bespaar €{result.monthlySavings.toFixed(0)}/maand door over te stappen
+                    </p>
+                    <p className="text-sm text-slate-500 leading-relaxed mt-0.5">{result.reasoning}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-100">
+                  <div className="bg-emerald-500 p-2 rounded-lg text-white shrink-0">
+                    <CheckCircle size={20} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900">Je zit op de beste prijs</p>
+                    <p className="text-sm text-slate-500 leading-relaxed mt-0.5">{result.reasoning}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-6 text-center space-y-2">
+              <p className="text-slate-500 text-sm">
+                {checking
+                  ? 'AI zoekt de beste prijzen voor jou...'
+                  : 'Klik op "Nu controleren" om de actuele marktprijzen te vergelijken.'}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* Action buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={performCheck}
+            disabled={checking}
+            className="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white p-3 rounded-xl font-semibold hover:bg-slate-800 transition-all disabled:opacity-50"
+          >
+            <RefreshCw size={18} className={checking ? 'animate-spin' : ''} />
+            {checking ? 'Controleren...' : 'Nu controleren'}
+          </button>
+          {!profile.isVerified && (
+            <button
+              onClick={onVerify}
+              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded-xl font-semibold hover:bg-blue-700 transition-all"
+            >
+              <Upload size={18} />
+              Rekening uploaden
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Feedback widget */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-2 mb-4">
           <HelpCircle size={18} className="text-blue-500" />

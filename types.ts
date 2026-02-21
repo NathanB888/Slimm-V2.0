@@ -32,6 +32,9 @@ export interface UserProfile {
   verifiedPerKwhRate?: number;
   verifiedProvider?: string;
   verifiedContractType?: ContractType;
+
+  // Last price check
+  lastPriceCheck?: PriceCheckResult;
 }
 
 export interface ComparisonResult {
@@ -39,6 +42,23 @@ export interface ComparisonResult {
   cheapestMonthlyCost: number;
   savingsEur: number;
   recommendation: 'SWITCH' | 'STAY' | 'CONSIDER';
+  reasoning: string;
+}
+
+export interface MarketProvider {
+  name: string;
+  perKwhRate: number;
+  contractType: 'variable' | 'fixed';
+}
+
+export interface PriceCheckResult {
+  checkedAt: string; // ISO timestamp
+  userKwhRate: number;
+  userKwhPerMonth: number;
+  top2: MarketProvider[];
+  cheapestOverall: MarketProvider;
+  recommendation: 'SWITCH' | 'STAY';
+  monthlySavings: number; // positive = savings, ≤0 = already cheapest
   reasoning: string;
 }
 
