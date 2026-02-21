@@ -36,7 +36,7 @@ function ProviderCard({ provider, rank, userKwhPerMonth }: { provider: MarketPro
         €{monthlyEstimate.toFixed(0)}
         <span className="text-sm font-normal text-slate-400">/maand</span>
       </p>
-      <p className="text-xs text-slate-400">€{provider.perKwhRate.toFixed(3)}/kWh</p>
+      <p className="text-xs text-slate-400">{userKwhPerMonth} kWh/maand</p>
     </div>
   );
 }
