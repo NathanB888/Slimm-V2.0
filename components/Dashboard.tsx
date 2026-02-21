@@ -19,8 +19,9 @@ function formatCheckedAt(iso: string): string {
     ' om ' + d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
 }
 
-function ProviderCard({ provider, rank }: { provider: MarketProvider; rank: number }) {
+function ProviderCard({ provider, rank, userKwhPerMonth }: { provider: MarketProvider; rank: number; userKwhPerMonth: number }) {
   const isVariable = provider.contractType === 'variable';
+  const monthlyEstimate = provider.perKwhRate * userKwhPerMonth;
   return (
     <div className="flex-1 bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2">
       <div className="flex items-center justify-between">
@@ -32,9 +33,10 @@ function ProviderCard({ provider, rank }: { provider: MarketProvider; rank: numb
       </div>
       <p className="font-bold text-slate-900 text-base leading-tight">{provider.name}</p>
       <p className="text-2xl font-extrabold text-slate-800">
-        €{provider.perKwhRate.toFixed(3)}
-        <span className="text-sm font-normal text-slate-400">/kWh</span>
+        €{monthlyEstimate.toFixed(0)}
+        <span className="text-sm font-normal text-slate-400">/maand</span>
       </p>
+      <p className="text-xs text-slate-400">€{provider.perKwhRate.toFixed(3)}/kWh</p>
     </div>
   );
 }
@@ -109,7 +111,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ profile, onUpdate, onLogou
               {/* Top 2 provider cards */}
               <div className="flex gap-3">
                 {result.top2.map((provider, i) => (
-                  <ProviderCard key={provider.name} provider={provider} rank={i + 1} />
+                  <ProviderCard key={provider.name} provider={provider} rank={i + 1} userKwhPerMonth={result.userKwhPerMonth} />
                 ))}
               </div>
 
