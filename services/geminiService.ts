@@ -3,8 +3,10 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, ComparisonResult, BillExtraction, MarketProvider, PriceCheckResult } from "../types";
 
 const getAI = () => {
-  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY || '';
-  if (!apiKey) throw new Error('Gemini API-sleutel niet geconfigureerd. Controleer de omgevingsvariabelen in Vercel.');
+  // import.meta.env.VITE_* is injected natively by Vite at build time —
+  // this works reliably in Vercel without any define() trickery.
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+  if (!apiKey) throw new Error('Gemini API-sleutel niet geconfigureerd. Voeg VITE_GEMINI_API_KEY toe als omgevingsvariabele in Vercel.');
   return new GoogleGenAI({ apiKey });
 };
 
