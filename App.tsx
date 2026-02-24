@@ -4,8 +4,8 @@ import { Layout } from './components/Layout';
 import { SignupFlow } from './components/SignupFlow';
 import { Dashboard } from './components/Dashboard';
 import { BillVerification } from './components/BillVerification';
-import { UserProfile, HouseholdSize, HouseType, ContractType, PriceCheckResult } from './types';
-import { Check, Loader2 } from 'lucide-react';
+import { UserProfile, HouseholdSize, HouseType, ContractType, PriceCheckResult, SubscriptionStatus } from './types';
+import { Check, Loader2, X } from 'lucide-react';
 import { supabase } from './services/supabaseClient';
 
 const App: React.FC = () => {
@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [loadingMessage, setLoadingMessage] = useState('Laden van jouw gegevens...');
   const [isVerifying, setIsVerifying] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   // Prevents the auth state listener from calling fetchProfile and setting
   // loading=true (which would unmount SignupFlow) while a signup is in progress.
@@ -22,6 +23,13 @@ const App: React.FC = () => {
   useEffect(() => {
     // Directly read session from localStorage — always resolves, no event timing issues
     const init = async () => {
+      // Detect Stripe return
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('payment') === 'success') {
+        setPaymentSuccess(true);
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -86,6 +94,7 @@ const App: React.FC = () => {
             isVerified: data.is_verified,
             estimatedKwhPerMonth: data.estimated_kwh_per_month,
             estimatedPerKwhRate: data.estimated_per_kwh_rate,
+            subscriptionStatus: (data.subscription_status as SubscriptionStatus) ?? 'free',
             lastPriceCheck: data.last_price_check_result ?? undefined,
           };
           setProfile(mappedProfile);
@@ -228,6 +237,18 @@ const App: React.FC = () => {
 
   return (
     <Layout>
+      {paymentSuccess && (
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4">
+          <Check size={18} className="text-emerald-600 shrink-0" />
+          <div className="flex-1">
+            <p className="font-bold text-emerald-800 text-sm">Premium geactiveerd!</p>
+            <p className="text-xs text-emerald-600">Je hebt nu toegang tot alle premium functies.</p>
+          </div>
+          <button onClick={() => setPaymentSuccess(false)} className="text-emerald-400 hover:text-emerald-600">
+            <X size={16} />
+          </button>
+        </div>
+      )}
       {isVerifying ? (
         <BillVerification
           onVerified={handleVerificationUpdate}

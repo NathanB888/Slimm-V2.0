@@ -3,7 +3,8 @@ import React, { useState } from 'react';
 import { UserProfile, PriceCheckResult, MarketProvider } from '../types';
 import { compareMarketPrices } from '../services/geminiService';
 import { CONTRACT_TYPE_LABELS } from '../constants';
-import { CheckCircle, AlertTriangle, RefreshCw, Upload, Trash2, HelpCircle, Zap, Lock } from 'lucide-react';
+import { CheckCircle, AlertTriangle, RefreshCw, Trash2, HelpCircle, Zap, Lock, Crown, ShieldCheck } from 'lucide-react';
+import { VerbruikValiderenModal } from './VerbruikValiderenModal';
 
 interface DashboardProps {
   profile: UserProfile;
@@ -47,6 +48,9 @@ function ProviderCard({ provider, rank, userKwhPerMonth }: { provider: MarketPro
 export const Dashboard: React.FC<DashboardProps> = ({ profile, onUpdate, onLogout, onVerify, onCheckComplete }) => {
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<PriceCheckResult | null>(profile.lastPriceCheck ?? null);
+  const [showValiderenModal, setShowValiderenModal] = useState(false);
+
+  const isPremium = profile.subscriptionStatus === 'premium';
 
   const performCheck = async () => {
     setChecking(true);
@@ -68,10 +72,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ profile, onUpdate, onLogou
       {/* Header */}
       <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
-            {profile.email.charAt(0).toUpperCase()}
+          <div className="relative">
+            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold">
+              {profile.email.charAt(0).toUpperCase()}
+            </div>
+            {isPremium && (
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-amber-400 rounded-full flex items-center justify-center">
+                <Crown size={8} className="text-white" />
+              </div>
+            )}
           </div>
-          <span className="text-sm font-medium text-slate-700">{profile.email}</span>
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-slate-700">{profile.email}</span>
+            {isPremium && (
+              <span className="flex items-center gap-1 text-xs font-semibold text-amber-600">
+                <ShieldCheck size={10} />
+                Premium
+              </span>
+            )}
+          </div>
         </div>
         <button onClick={onLogout} className="text-sm text-gray-400 hover:text-red-500 transition-colors">Uitloggen</button>
       </div>
@@ -164,15 +183,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ profile, onUpdate, onLogou
             <RefreshCw size={18} className={checking ? 'animate-spin' : ''} />
             {checking ? 'Controleren...' : 'Nu controleren'}
           </button>
-          {!profile.isVerified && (
-            <button
-              onClick={onVerify}
-              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded-xl font-semibold hover:bg-blue-700 transition-all"
-            >
-              <Upload size={18} />
-              Rekening uploaden
-            </button>
-          )}
+          <button
+            onClick={() => setShowValiderenModal(true)}
+            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded-xl font-semibold hover:bg-blue-700 transition-all"
+          >
+            <ShieldCheck size={18} />
+            Verbruik valideren
+          </button>
         </div>
       </div>
 
@@ -200,6 +217,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ profile, onUpdate, onLogou
         <Trash2 size={16} />
         Mijn account verwijderen
       </button>
+
+      {showValiderenModal && (
+        <VerbruikValiderenModal
+          isPremium={isPremium}
+          onClose={() => setShowValiderenModal(false)}
+          onUpload={() => {
+            setShowValiderenModal(false);
+            onVerify();
+          }}
+        />
+      )}
     </div>
   );
 };

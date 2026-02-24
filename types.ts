@@ -3,6 +3,7 @@ export type HouseholdSize = '1' | '2' | '3-4' | '5+';
 export type HouseType = 'apartment' | 'townhouse' | 'single_family' | 'other';
 export type ContractType = 'fixed' | 'flexible' | 'dynamic' | 'unknown';
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
+export type SubscriptionStatus = 'free' | 'premium';
 
 export interface UserProfile {
   email: string;
@@ -32,6 +33,9 @@ export interface UserProfile {
   verifiedPerKwhRate?: number;
   verifiedProvider?: string;
   verifiedContractType?: ContractType;
+
+  // Subscription
+  subscriptionStatus?: SubscriptionStatus;
 
   // Last price check
   lastPriceCheck?: PriceCheckResult;
