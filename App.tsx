@@ -15,6 +15,8 @@ const App: React.FC = () => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [awaitingPremium, setAwaitingPremium] = useState(false);
+  const premiumPollCount = useRef(0);
 
   // Prevents the auth state listener from calling fetchProfile and setting
   // loading=true (which would unmount SignupFlow) while a signup is in progress.
@@ -27,6 +29,8 @@ const App: React.FC = () => {
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('payment') === 'success') {
         setPaymentSuccess(true);
+        setAwaitingPremium(true);
+        premiumPollCount.current = 0;
         window.history.replaceState({}, '', window.location.pathname);
       }
 
@@ -54,6 +58,25 @@ const App: React.FC = () => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Poll Supabase every 3s after payment until subscription_status = 'premium' (max 5 attempts)
+  useEffect(() => {
+    if (!awaitingPremium || !profile) return;
+    if (profile.subscriptionStatus === 'premium') {
+      setAwaitingPremium(false);
+      return;
+    }
+    if (premiumPollCount.current >= 5) {
+      setAwaitingPremium(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      premiumPollCount.current += 1;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) await fetchProfile(user.id);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [awaitingPremium, profile]);
 
   const fetchProfile = async (userId: string) => {
     setLoading(true);
@@ -239,14 +262,25 @@ const App: React.FC = () => {
     <Layout>
       {paymentSuccess && (
         <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4">
-          <Check size={18} className="text-emerald-600 shrink-0" />
+          {awaitingPremium
+            ? <Loader2 size={18} className="text-emerald-600 shrink-0 animate-spin" />
+            : <Check size={18} className="text-emerald-600 shrink-0" />
+          }
           <div className="flex-1">
-            <p className="font-bold text-emerald-800 text-sm">Premium geactiveerd!</p>
-            <p className="text-xs text-emerald-600">Je hebt nu toegang tot alle premium functies.</p>
+            <p className="font-bold text-emerald-800 text-sm">
+              {awaitingPremium ? 'Betaling verwerken...' : 'Premium geactiveerd!'}
+            </p>
+            <p className="text-xs text-emerald-600">
+              {awaitingPremium
+                ? 'Even geduld, je account wordt bijgewerkt.'
+                : 'Je hebt nu toegang tot alle premium functies.'}
+            </p>
           </div>
-          <button onClick={() => setPaymentSuccess(false)} className="text-emerald-400 hover:text-emerald-600">
-            <X size={16} />
-          </button>
+          {!awaitingPremium && (
+            <button onClick={() => setPaymentSuccess(false)} className="text-emerald-400 hover:text-emerald-600">
+              <X size={16} />
+            </button>
+          )}
         </div>
       )}
       {isVerifying ? (
