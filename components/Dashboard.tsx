@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { UserProfile, PriceCheckResult, MarketProvider } from '../types';
 import { compareMarketPrices } from '../services/geminiService';
-import { CONTRACT_TYPE_LABELS } from '../constants';
+import { CONTRACT_TYPE_LABELS, FEATURE_VERBRUIK_VALIDEREN } from '../constants';
 import { CheckCircle, AlertTriangle, RefreshCw, Trash2, HelpCircle, Zap, Lock, Crown, ShieldCheck } from 'lucide-react';
 import { VerbruikValiderenModal } from './VerbruikValiderenModal';
 
@@ -183,13 +183,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ profile, onUpdate, onLogou
             <RefreshCw size={18} className={checking ? 'animate-spin' : ''} />
             {checking ? 'Controleren...' : 'Nu controleren'}
           </button>
-          <button
-            onClick={() => setShowValiderenModal(true)}
-            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded-xl font-semibold hover:bg-blue-700 transition-all"
-          >
-            <ShieldCheck size={18} />
-            Verbruik valideren
-          </button>
+          {FEATURE_VERBRUIK_VALIDEREN && (
+            <button
+              onClick={() => setShowValiderenModal(true)}
+              className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white p-3 rounded-xl font-semibold hover:bg-blue-700 transition-all"
+            >
+              <ShieldCheck size={18} />
+              Verbruik valideren
+            </button>
+          )}
         </div>
       </div>
 

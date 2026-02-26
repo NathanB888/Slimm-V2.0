@@ -1,4 +1,7 @@
 
+// Feature flags — set to true to re-enable
+export const FEATURE_VERBRUIK_VALIDEREN = false;
+
 export const ENERGY_PROVIDERS = [
   'Essent',
   'Engie',
